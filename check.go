@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
@@ -84,6 +85,9 @@ func check_server_ns_resolve_a(q, ns string) error {
 
 func check(q string) {
 	log.Printf("Checking %s", q)
+	if !strings.HasSuffix(q, ".") {
+		q = q + "."
+	}
 	for _, server := range conf.Servers {
 		check_server(q, server+":"+conf.Port)
 		check_server_ns(q, server+":"+conf.Port)
