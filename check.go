@@ -36,7 +36,7 @@ func check_server(q string, server string) error {
 	return nil
 }
 func check_server_ns(q, server string) error {
-	log.Printf("  Looking up NS record for %s using server %s", q, server)
+	log.Printf("  Looking up NS record for %s using local server %s", q, server)
 
 	m := new(dns.Msg)
 	m.SetQuestion(q, dns.TypeNS)
@@ -54,7 +54,7 @@ func check_server_ns(q, server string) error {
 	return nil
 }
 func check_server_ns_resolve(q, server, ns string) error {
-	log.Printf("      Looking up A record for NS %s using server %s", ns, server)
+	log.Printf("    Looking up A record for NS %s using local server %s", ns, server)
 	m := new(dns.Msg)
 	m.SetQuestion(ns, dns.TypeA)
 	m.RecursionDesired = true
@@ -73,22 +73,22 @@ func check_server_ns_resolve(q, server, ns string) error {
 
 func check_server_ns_resolve_a(q, ns string) error {
 	if _, exists := successful_queries[q+ns]; exists {
-		log.Printf("        Skipping duplicate lookup A record for %s using server %s", q, ns)
+		log.Printf("      Skipping duplicate lookup A record for %s using server %s", q, ns)
 		return nil
 	}
 
-	log.Printf("        Looking up A record for %s using server %s", q, ns)
+	log.Printf("      Looking up A record for %s using server %s", q, ns)
 	m := new(dns.Msg)
 	m.SetQuestion(q, dns.TypeA)
 	m.RecursionDesired = false
 	response, _, err := localc.Exchange(m, ns)
 	if err != nil {
-		log.Printf("          Error looking up %s against %s: %s", q, ns, err)
+		log.Printf("        Error looking up %s against %s: %s", q, ns, err)
 		return err
 	}
 	for _, r := range response.Answer {
 		rec := r.(*dns.A).A
-		log.Printf("          Got response %s", rec)
+		log.Printf("        Got response %s", rec)
 	}
 	successful_queries[q+ns] = true
 	return nil
