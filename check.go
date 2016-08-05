@@ -59,7 +59,8 @@ func find_ns_records(q, server string) ([]string, error) {
 			return name_servers, nil
 		}
 		q = q[strings.Index(q, ".")+1:]
-		if q == "" {
+		//FIXME: This doesn't work for .co.uk etc
+		if q == "" || strings.Count(q, ".") == 1 {
 			return name_servers, errors.New("No servers found")
 		}
 	}
