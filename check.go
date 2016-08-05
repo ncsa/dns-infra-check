@@ -34,6 +34,11 @@ func check_server(q string, server string) error {
 	for _, r := range response.Answer {
 		log.Printf("    Got response %s", r.String())
 	}
+	if len(response.Answer) == 0 {
+		err = errors.New("Empty response")
+		log.Printf("    Error looking up %s against %s: %s", q, server, err)
+		return err
+	}
 	return nil
 }
 
