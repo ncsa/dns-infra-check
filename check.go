@@ -10,23 +10,28 @@ import (
 )
 
 var (
-	localc *dns.Client
-	conf   *dns.ClientConfig
+	localc             *dns.Client
+	conf               *dns.ClientConfig
+	successful_queries map[string]bool
 )
 
+func init() {
+	successful_queries = make(map[string]bool)
+}
+
 func check_server(q string, server string) error {
-	log.Printf("  Looking up %s using server %s", q, server)
+	log.Printf("  Looking up %s using local server %s", q, server)
 
 	m := new(dns.Msg)
 	m.SetQuestion(q, dns.TypeA)
 	m.RecursionDesired = true
 	response, _, err := localc.Exchange(m, server)
 	if err != nil {
-		log.Printf("  Error looking up %s against %s: %s", q, server, err)
+		log.Printf("    Error looking up %s against %s: %s", q, server, err)
 		return err
 	}
 	for _, r := range response.Answer {
-		log.Printf("  Got response %s", r.(*dns.A).A)
+		log.Printf("    Got response %s", r.(*dns.A).A)
 	}
 	return nil
 }
@@ -43,7 +48,7 @@ func check_server_ns(q, server string) error {
 	}
 	for _, r := range response.Answer {
 		ns := r.(*dns.NS).Ns
-		log.Printf("    Got response %q", ns)
+		log.Printf("    Got response %s", ns)
 		check_server_ns_resolve(q, server, ns)
 	}
 	return nil
@@ -67,19 +72,25 @@ func check_server_ns_resolve(q, server, ns string) error {
 }
 
 func check_server_ns_resolve_a(q, ns string) error {
+	if _, exists := successful_queries[q+ns]; exists {
+		log.Printf("        Skipping duplicate lookup A record for %s using server %s", q, ns)
+		return nil
+	}
+
 	log.Printf("        Looking up A record for %s using server %s", q, ns)
 	m := new(dns.Msg)
 	m.SetQuestion(q, dns.TypeA)
 	m.RecursionDesired = false
 	response, _, err := localc.Exchange(m, ns)
 	if err != nil {
-		log.Printf("        Error looking up %s against %s: %s", q, ns, err)
+		log.Printf("          Error looking up %s against %s: %s", q, ns, err)
 		return err
 	}
 	for _, r := range response.Answer {
 		rec := r.(*dns.A).A
-		log.Printf("      Got response %s", rec)
+		log.Printf("          Got response %s", rec)
 	}
+	successful_queries[q+ns] = true
 	return nil
 }
 
