@@ -42,6 +42,7 @@ func check_server(q string, server string) error {
 	}
 	if err != nil {
 		log.Printf("    Error looking up %s against %s: %s", q, server, err)
+		log.Printf("    Raw response: %s", response)
 	}
 	return err
 }
@@ -111,6 +112,7 @@ func check_server_ns_resolve_a(q, ns string) error {
 		log.Printf("      Skipping duplicate lookup A record for %s using server %s", q, ns)
 		return nil
 	}
+	var err error
 
 	log.Printf("      Looking up A record for %s using server %s", q, ns)
 	m := new(dns.Msg)
@@ -123,6 +125,12 @@ func check_server_ns_resolve_a(q, ns string) error {
 	}
 	for _, r := range response.Answer {
 		log.Printf("        Got response %s", r)
+	}
+	if len(response.Answer) == 0 {
+		err = errors.New("Empty response")
+		log.Printf("        Error looking up %s against %s: %s", q, ns, err)
+		log.Printf("        Raw response: %s", response)
+		return err
 	}
 	successful_queries[q+ns] = true
 	return nil
