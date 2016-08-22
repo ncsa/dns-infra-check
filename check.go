@@ -23,12 +23,12 @@ func (ss *stringSlice) Set(value string) error {
 }
 
 var (
-	localc             *dns.Client
-	conf               *dns.ClientConfig
-	successful_queries map[string]bool
-	retries            int
-	timeout            time.Duration
-	addtionalNS        stringSlice
+	localc            *dns.Client
+	conf              *dns.ClientConfig
+	performed_queries map[string]bool
+	retries           int
+	timeout           time.Duration
+	addtionalNS       stringSlice
 
 	ErrEmptyResponse = errors.New("Empty response")
 	ErrNXDOMAIN      = errors.New("NXDOMAIN")
@@ -38,7 +38,7 @@ func init() {
 	flag.Var(&addtionalNS, "ns", "Additional name servers to query")
 	flag.IntVar(&retries, "retries", 3, "Number of retries")
 	flag.DurationVar(&timeout, "timeout", 5*time.Second, "timeout for queries")
-	successful_queries = make(map[string]bool)
+	performed_queries = make(map[string]bool)
 }
 
 func ExchangeWithRetries(server string, query string, qtype uint16, recursionDesired bool, allowEmpty bool) (*dns.Msg, error) {
@@ -140,10 +140,11 @@ func check_server_ns_resolve(q, server, ns string) error {
 }
 
 func check_server_ns_resolve_a(q, ns string) error {
-	if _, exists := successful_queries[q+ns]; exists {
+	if _, exists := performed_queries[q+ns]; exists {
 		log.Printf("      Skipping duplicate lookup A record for %s using server %s", q, ns)
 		return nil
 	}
+	performed_queries[q+ns] = true
 	var err error
 
 	log.Printf("      Looking up A record for %s using server %s", q, ns)
@@ -155,7 +156,6 @@ func check_server_ns_resolve_a(q, ns string) error {
 	for _, r := range response.Answer {
 		log.Printf("        Got response %s", r)
 	}
-	successful_queries[q+ns] = true
 	return nil
 }
 
