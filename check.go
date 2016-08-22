@@ -14,35 +14,57 @@ var (
 	localc             *dns.Client
 	conf               *dns.ClientConfig
 	successful_queries map[string]bool
+	retries            int
+
+	ErrEmptyResponse = errors.New("Empty response")
+	ErrNXDOMAIN      = errors.New("NXDOMAIN")
 )
 
 func init() {
 	successful_queries = make(map[string]bool)
+	retries = 3
+}
+
+func ExchangeWithRetries(server string, query string, qtype uint16, recursionDesired bool, allowEmpty bool) (*dns.Msg, error) {
+	m := new(dns.Msg)
+	m.SetQuestion(query, qtype)
+	m.RecursionDesired = recursionDesired
+	delay := 1 * time.Second
+
+	var err error
+	var response *dns.Msg
+	for attempt := 1; attempt <= retries; attempt++ {
+		err = nil
+		response, _, err = localc.Exchange(m, server)
+		if err == nil {
+			if len(response.Answer) == 0 && !allowEmpty {
+				err = ErrEmptyResponse
+			}
+			if response.Rcode == dns.RcodeNameError {
+				err = ErrNXDOMAIN
+			}
+		}
+		if err == nil {
+			break
+		}
+		if attempt != retries {
+			log.Printf("    Error (retry %d/%d) looking up %s against %s: %s", attempt, retries, query, server, err)
+			time.Sleep(delay)
+			delay *= 2
+		}
+	}
+	return response, err
 }
 
 func check_server(q string, server string) error {
 	log.Printf("  Looking up %s using local server %s", q, server)
-
-	m := new(dns.Msg)
-	m.SetQuestion(q, dns.TypeA)
-	m.RecursionDesired = true
-	response, _, err := localc.Exchange(m, server)
+	response, err := ExchangeWithRetries(server, q, dns.TypeA, true, false)
 	if err != nil {
 		log.Printf("    Error looking up %s against %s: %s", q, server, err)
 		return err
 	}
 	for _, r := range response.Answer {
 		log.Printf("    Got response %s", r.String())
-	}
-	if len(response.Answer) == 0 {
-		err = errors.New("Empty response")
-	}
-	if response.Rcode == dns.RcodeNameError {
-		err = errors.New("NXDOMAIN")
-	}
-	if err != nil {
-		log.Printf("    Error looking up %s against %s: %s", q, server, err)
-		log.Printf("    Raw response: %s", response)
 	}
 	return err
 }
@@ -52,11 +74,8 @@ func find_ns_records(q, server string) ([]string, error) {
 	var name_servers []string
 	for {
 		log.Printf("  looking up NS records for %s against %s", q, server)
-		m := new(dns.Msg)
-		m.SetQuestion(q, dns.TypeNS)
-		m.RecursionDesired = true
-		response, _, err := localc.Exchange(m, server)
-		if err != nil {
+		response, err := ExchangeWithRetries(server, q, dns.TypeNS, true, true)
+		if err != nil && err != ErrEmptyResponse {
 			log.Printf("  Error looking up %s against %s: %s", q, server, err)
 			return name_servers, err
 		}
@@ -91,10 +110,7 @@ func check_server_ns(q, server string) error {
 }
 func check_server_ns_resolve(q, server, ns string) error {
 	log.Printf("    Looking up A record for NS %s using local server %s", ns, server)
-	m := new(dns.Msg)
-	m.SetQuestion(ns, dns.TypeA)
-	m.RecursionDesired = true
-	response, _, err := localc.Exchange(m, server)
+	response, err := ExchangeWithRetries(server, ns, dns.TypeA, true, false)
 	if err != nil {
 		log.Printf("      Error looking up %s against %s: %s", ns, server, err)
 		return err
@@ -115,22 +131,13 @@ func check_server_ns_resolve_a(q, ns string) error {
 	var err error
 
 	log.Printf("      Looking up A record for %s using server %s", q, ns)
-	m := new(dns.Msg)
-	m.SetQuestion(q, dns.TypeA)
-	m.RecursionDesired = false
-	response, _, err := localc.Exchange(m, ns)
+	response, err := ExchangeWithRetries(ns, q, dns.TypeA, false, false)
 	if err != nil {
 		log.Printf("        Error looking up %s against %s: %s", q, ns, err)
 		return err
 	}
 	for _, r := range response.Answer {
 		log.Printf("        Got response %s", r)
-	}
-	if len(response.Answer) == 0 {
-		err = errors.New("Empty response")
-		log.Printf("        Error looking up %s against %s: %s", q, ns, err)
-		log.Printf("        Raw response: %s", response)
-		return err
 	}
 	successful_queries[q+ns] = true
 	return nil
@@ -153,5 +160,7 @@ func main() {
 	}
 	localc = new(dns.Client)
 	localc.ReadTimeout = 5 * time.Second
-	check(os.Args[1])
+	for _, domain := range os.Args[1:] {
+		check(domain)
+	}
 }
