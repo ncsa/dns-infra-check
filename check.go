@@ -2,27 +2,43 @@ package main
 
 import (
 	"errors"
+	"flag"
+	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/miekg/dns"
 )
 
+// A option type for accepting multiple strings via flag module
+type stringSlice []string
+
+func (ss *stringSlice) String() string {
+	return fmt.Sprint(*ss)
+}
+func (ss *stringSlice) Set(value string) error {
+	*ss = append(*ss, value)
+	return nil
+}
+
 var (
 	localc             *dns.Client
 	conf               *dns.ClientConfig
 	successful_queries map[string]bool
 	retries            int
+	timeout            time.Duration
+	addtionalNS        stringSlice
 
 	ErrEmptyResponse = errors.New("Empty response")
 	ErrNXDOMAIN      = errors.New("NXDOMAIN")
 )
 
 func init() {
+	flag.Var(&addtionalNS, "ns", "Additional name servers to query")
+	flag.IntVar(&retries, "retries", 3, "Number of retries")
+	flag.DurationVar(&timeout, "timeout", 5*time.Second, "timeout for queries")
 	successful_queries = make(map[string]bool)
-	retries = 3
 }
 
 func ExchangeWithRetries(server string, query string, qtype uint16, recursionDesired bool, allowEmpty bool) (*dns.Msg, error) {
@@ -153,14 +169,18 @@ func check(q string) {
 }
 
 func main() {
+
+	flag.Parse()
+
 	var err error
 	conf, err = dns.ClientConfigFromFile("/etc/resolv.conf")
 	if conf == nil {
 		log.Fatal("Cannot initialize the local resolver: %s\n", err)
 	}
+	conf.Servers = append(conf.Servers, addtionalNS...)
 	localc = new(dns.Client)
-	localc.ReadTimeout = 5 * time.Second
-	for _, domain := range os.Args[1:] {
+	localc.ReadTimeout = timeout
+	for _, domain := range flag.Args() {
 		check(domain)
 	}
 }
