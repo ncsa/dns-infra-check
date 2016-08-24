@@ -3,7 +3,14 @@
 A work in progress tool to verify that DNS infrastructure is working properly.
 It's kind of a mash up of host or dig.
 
-    Usage of ./dns-infra-check:
+## Usage of dns-infra-check:
+
+By default you can simply run dns-infra-check with a list of domain names.  It will parse /etc/resolv.conf and test each domain against each server.
+
+    $ dns-infra-check example.com example.org
+
+It also supports the following arguments
+
       -ns value
         	Additional name servers to query
       -retries int
