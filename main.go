@@ -28,6 +28,7 @@ var (
 	performed_queries map[string]bool
 	retries           int
 	timeout           time.Duration
+	skipNSChecks      bool
 	addtionalNS       stringSlice
 
 	ErrEmptyResponse = errors.New("Empty response")
@@ -38,6 +39,7 @@ func init() {
 	flag.Var(&addtionalNS, "ns", "Additional name servers to query")
 	flag.IntVar(&retries, "retries", 3, "Number of retries")
 	flag.DurationVar(&timeout, "timeout", 5*time.Second, "timeout for queries")
+	flag.BoolVar(&skipNSChecks, "skipnschecks", false, "Skip the NS record checks, only run queries for the A records")
 	performed_queries = make(map[string]bool)
 }
 
@@ -164,7 +166,9 @@ func check(q string) {
 	log.Printf("Checking %s", q)
 	for _, server := range conf.Servers {
 		check_server(q, server+":"+conf.Port)
-		check_server_ns(q, server+":"+conf.Port)
+		if !skipNSChecks {
+			check_server_ns(q, server+":"+conf.Port)
+		}
 	}
 }
 
