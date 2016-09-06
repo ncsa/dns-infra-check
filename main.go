@@ -29,6 +29,7 @@ var (
 	retries           int
 	timeout           time.Duration
 	skipNSChecks      bool
+	ipv6              bool
 	addtionalNS       stringSlice
 
 	ErrEmptyResponse = errors.New("Empty response")
@@ -40,6 +41,7 @@ func init() {
 	flag.IntVar(&retries, "retries", 3, "Number of retries")
 	flag.DurationVar(&timeout, "timeout", 5*time.Second, "timeout for queries")
 	flag.BoolVar(&skipNSChecks, "skipnschecks", false, "Skip the NS record checks, only run queries for the A records")
+	flag.BoolVar(&ipv6, "6", false, "Perform NS record checks against any AAAA records")
 	performed_queries = make(map[string]bool)
 }
 
@@ -123,6 +125,9 @@ func check_server_ns(q, server string) error {
 	for _, ns := range name_servers {
 		log.Printf("    Got response %s", ns)
 		check_server_ns_resolve(q, server, ns)
+		if ipv6 {
+			check_server_ns_resolve_aaaa(q, server, ns)
+		}
 	}
 	return nil
 }
@@ -137,6 +142,20 @@ func check_server_ns_resolve(q, server, ns string) error {
 		ns := r.(*dns.A).A
 		log.Printf("      Got response %s", ns)
 		check_server_ns_resolve_a(q, ns.String()+":"+conf.Port)
+	}
+	return nil
+}
+func check_server_ns_resolve_aaaa(q, server, ns string) error {
+	log.Printf("    Looking up AAAA record for NS %s using local server %s", ns, server)
+	response, err := ExchangeWithRetries(server, ns, dns.TypeAAAA, true, false)
+	if err != nil {
+		log.Printf("      Error looking up %s against %s: %s", ns, server, err)
+		return err
+	}
+	for _, r := range response.Answer {
+		ns := r.(*dns.AAAA).AAAA
+		log.Printf("      Got response %s", ns)
+		check_server_ns_resolve_a(q, fmt.Sprintf("[%s]:%s", ns, conf.Port))
 	}
 	return nil
 }
