@@ -11,13 +11,16 @@ By default you can simply run dns-infra-check with a list of domain names.  It w
 
 It also supports the following arguments
 
+      -6
+            Perform NS record checks against any AAAA records
       -ns value
-        	Additional name servers to query
+            Additional name servers to query
       -retries int
-        	Number of retries (default 3)
+            Number of retries (default 3)
+      -skipnschecks
+            Skip the NS record checks, only run queries for the A records
       -timeout duration
-        	timeout for queries (default 5s)
-
+            timeout for queries (default 5s)
 
 # Example output:
 
